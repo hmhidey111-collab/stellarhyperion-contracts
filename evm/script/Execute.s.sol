@@ -44,6 +44,11 @@ contract Execute is DeployConfig {
         console.log("now                 ", block.timestamp);
         console.log("");
 
+        if (vm.envOr("HYPERION_REPORT_ONLY", false)) {
+            _reportPending(router, ids, whats);
+            return;
+        }
+
         uint256 executed;
         uint256 alreadyDone;
 
@@ -88,6 +93,36 @@ contract Execute is DeployConfig {
         console.log("already done        ", alreadyDone);
 
         _verify(router);
+    }
+
+    /// @notice Deterministic read-only schedule report. It never starts a broadcast or changes
+    /// state, and it uses the router's current timestamps rather than the deployment record's
+    /// planned times.
+    function _reportPending(HyperionRouter router, uint256[] memory ids, string[] memory whats)
+        private
+        view
+    {
+        for (uint256 i = 0; i < ids.length; ++i) {
+            uint64 id = uint64(ids[i]);
+            string memory what = i < whats.length ? whats[i] : "unnamed";
+            QueuedAction memory action = router.queuedAction(id);
+            if (action.id == 0) {
+                console.log("EXCLUDED missing-or-cancelled", id, what);
+            } else if (action.executed) {
+                console.log("EXCLUDED executed", id, what);
+            } else if (block.timestamp > action.expiresAt) {
+                console.log("EXCLUDED expired", id, what);
+                console.log("  expired at        ", action.expiresAt);
+            } else if (block.timestamp < action.eta) {
+                console.log("PENDING", id, what);
+                console.log("  ready at          ", action.eta);
+                console.log("  seconds remaining ", action.eta - block.timestamp);
+                console.log("  expires at        ", action.expiresAt);
+            } else {
+                console.log("READY", id, what);
+                console.log("  expires at        ", action.expiresAt);
+            }
+        }
     }
 
     /// @dev Read the router back rather than trusting that the transactions above did what they
