@@ -2,6 +2,7 @@ mod doubles;
 mod setup;
 
 mod admin;
+mod benchmarks;
 mod discovery;
 mod inbound;
 mod maintenance;
